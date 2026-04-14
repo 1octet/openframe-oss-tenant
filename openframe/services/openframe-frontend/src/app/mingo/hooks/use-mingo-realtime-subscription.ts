@@ -6,6 +6,8 @@ import {
   extractIncompleteMessageState,
   type MessageSegment,
   type NatsMessageType,
+  type SegmentsUpdateMetadata,
+  type TokenUsageData,
   useNatsDialogSubscription,
   useRealtimeChunkProcessor,
 } from '@flamingo-stack/openframe-frontend-core';
@@ -195,7 +197,10 @@ function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProces
     setStreamingMessage,
     getStreamingMessage,
     updateStreamingMessageSegments,
+    appendSegmentsToLastAssistant,
+    setCompacting,
     getOrCreateAccumulator,
+    setTokenUsage,
   } = useMingoMessagesStore();
 
   useEffect(() => {
@@ -305,6 +310,7 @@ function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProces
   const realtimeCallbacks = useMemo(
     () => ({
       onStreamStart: () => {
+        setCompacting(dialogId, false);
         ensureAssistantMessage();
         setTyping(dialogId, true);
       },
@@ -314,10 +320,20 @@ function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProces
         setStreamingMessage(dialogId, null);
       },
 
-      onSegmentsUpdate: (segments: MessageSegment[]) => {
-        setTyping(dialogId, true);
-        ensureAssistantMessage();
-        updateStreamingMessageSegments(dialogId, segments);
+      onSegmentsUpdate: (segments: MessageSegment[], metadata?: SegmentsUpdateMetadata) => {
+        if (metadata?.isCompacting) {
+          setCompacting(dialogId, true);
+          setTyping(dialogId, false);
+        } else {
+          setCompacting(dialogId, false);
+          setTyping(dialogId, true);
+        }
+        if (metadata?.append) {
+          appendSegmentsToLastAssistant(dialogId, segments);
+        } else {
+          ensureAssistantMessage();
+          updateStreamingMessageSegments(dialogId, segments);
+        }
       },
 
       onError: (error: string) => {
@@ -327,6 +343,11 @@ function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProces
         addErrorMessage(error);
       },
 
+      onTokenUsage: (data: TokenUsageData) => {
+        console.log('[Mingo] TOKEN_USAGE received for dialog', dialogId, data);
+        setTokenUsage(dialogId, data);
+      },
+
       onMetadata,
       onApprove,
       onReject,
@@ -334,10 +355,13 @@ function useDialogChunkProcessor(dialogId: string, options: UseDialogChunkProces
     [
       dialogId,
       ensureAssistantMessage,
+      appendSegmentsToLastAssistant,
+      setCompacting,
       setTyping,
       setStreamingMessage,
       updateStreamingMessageSegments,
       addErrorMessage,
+      setTokenUsage,
       onMetadata,
       onApprove,
       onReject,

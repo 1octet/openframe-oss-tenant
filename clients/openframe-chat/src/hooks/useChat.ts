@@ -4,6 +4,8 @@ import {
   type Message,
   type MessageSegment,
   type NatsMessageType,
+  type SegmentsUpdateMetadata,
+  type TokenUsageData,
   useNatsDialogSubscription,
   useRealtimeChunkProcessor,
 } from '@flamingo-stack/openframe-frontend-core';
@@ -24,12 +26,14 @@ interface UseChatOptions {
   apiBaseUrl?: string;
   useNats?: boolean;
   onMetadataUpdate?: (metadata: { modelName: string; providerName: string; contextWindow: number }) => void;
+  onTokenUsage?: (data: TokenUsageData) => void;
 }
 
-export function useChat({ useApi = true, useNats = false, onMetadataUpdate }: UseChatOptions = {}) {
+export function useChat({ useApi = true, useNats = false, onMetadataUpdate, onTokenUsage }: UseChatOptions = {}) {
   // Core state
   const [isTyping, setIsTyping] = useState(false);
   const [natsStreaming, setNatsStreaming] = useState(false);
+  const [isCompacting, setIsCompacting] = useState(false);
   const [natsDialogId, setNatsDialogId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isResumedDialog, setIsResumedDialog] = useState(false);
@@ -132,6 +136,7 @@ export function useChat({ useApi = true, useNats = false, onMetadataUpdate }: Us
   const realtimeCallbacks = useMemo(
     () => ({
       onStreamStart: () => {
+        setIsCompacting(false);
         setNatsStreaming(true);
         setIsTyping(true);
         messagesRef.current.resetCurrentMessageSegments();
@@ -145,10 +150,22 @@ export function useChat({ useApi = true, useNats = false, onMetadataUpdate }: Us
         if (resolve) resolve();
       },
       onMetadata: onMetadataUpdate,
-      onSegmentsUpdate: (segments: MessageSegment[]) => {
-        messagesRef.current.ensureAssistantMessage();
-        setNatsStreaming(true);
-        messagesRef.current.updateSegments(segments);
+      onTokenUsage,
+      onSegmentsUpdate: (segments: MessageSegment[], metadata?: SegmentsUpdateMetadata) => {
+        if (metadata?.isCompacting) {
+          setIsCompacting(true);
+          setNatsStreaming(false);
+          setIsTyping(false);
+        } else {
+          setIsCompacting(false);
+          setNatsStreaming(true);
+        }
+        if (metadata?.append) {
+          messagesRef.current.appendSegmentsToLastAssistant(segments);
+        } else {
+          messagesRef.current.ensureAssistantMessage();
+          messagesRef.current.updateSegments(segments);
+        }
       },
       onError: (_errorText: string) => {
         setNatsStreaming(false);
@@ -204,7 +221,7 @@ export function useChat({ useApi = true, useNats = false, onMetadataUpdate }: Us
         messagesRef.current.addMessage(systemMessage);
       },
     }),
-    [onMetadataUpdate],
+    [onMetadataUpdate, onTokenUsage],
   );
 
   const incompleteState = useMemo(() => {
@@ -589,6 +606,7 @@ export function useChat({ useApi = true, useNats = false, onMetadataUpdate }: Us
     messages: allMessages,
     isTyping,
     isStreaming: natsStreaming,
+    isCompacting,
     error,
     dialogId: natsDialogId,
     sendMessage,

@@ -46,6 +46,12 @@ export const GET_MINGO_DIALOG_QUERY = `
       dialogId
       createdAt
     }
+    tokenUsage {
+      inputTokensSize
+      outputTokensSize
+      totalTokensSize
+      contextSize
+    }
     }
   }
 `;
@@ -113,6 +119,15 @@ export const GET_DIALOG_MESSAGES_QUERY = `
               approvalRequestId
               approved
               approvalType
+            }
+
+            ... on ContextCompactionStartData {
+              type
+            }
+
+            ... on ContextCompactionEndData {
+              type
+              summary
             }
 
             ... on ErrorData {

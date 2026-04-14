@@ -13,6 +13,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   ModelDisplay,
+  type TokenUsageData,
 } from '@flamingo-stack/openframe-frontend-core';
 import { ClockHistoryIcon, Ellipsis01Icon, PlusCircleIcon, TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -26,9 +27,23 @@ import { useChat } from '../hooks/useChat';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useTickets } from '../hooks/useTickets';
 import { useWelcomeScreen } from '../hooks/useWelcomeScreen';
-import { dialogGraphQlService, type ResumableDialog } from '../services/dialogGraphQLService';
+import {
+  dialogGraphQlService,
+  type DialogTokenUsage,
+  type ResumableDialog,
+} from '../services/dialogGraphQLService';
 import { supportedModelsService } from '../services/supportedModelsService';
 import { ticketGraphQlService } from '../services/ticketGraphQlService';
+
+function toTokenUsageData(usage: DialogTokenUsage | null | undefined): TokenUsageData | null {
+  if (!usage) return null;
+  return {
+    inputTokensSize: usage.inputTokensSize ?? 0,
+    outputTokensSize: usage.outputTokensSize ?? 0,
+    totalTokensSize: usage.totalTokensSize ?? 0,
+    contextSize: usage.contextSize ?? 0,
+  };
+}
 
 export function ChatView() {
   const { flags } = useFeatureFlags();
@@ -41,6 +56,7 @@ export function ChatView() {
   } | null>(null);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [resumableDialog, setResumableDialog] = useState<ResumableDialog | null>(null);
+  const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
   const [faeFormTicket, setFaeFormTicket] = useState<{
     id: string;
     title: string;
@@ -49,6 +65,10 @@ export function ChatView() {
   } | null>(null);
   const [previewTicketId, setPreviewTicketId] = useState<string | null>(null);
   const { showWelcome, completeWelcome } = useWelcomeScreen();
+
+  const handleTokenUsage = useCallback((data: TokenUsageData) => {
+    setTokenUsage(data);
+  }, []);
 
   const handleMetadataUpdate = useCallback(
     (metadata: { modelName: string; providerName: string; contextWindow: number }) => {
@@ -65,6 +85,7 @@ export function ChatView() {
     messages,
     isTyping,
     isStreaming,
+    isCompacting,
     sendMessage,
     stopGeneration,
     handleQuickAction,
@@ -84,6 +105,7 @@ export function ChatView() {
     useApi: true,
     useNats: true,
     onMetadataUpdate: handleMetadataUpdate,
+    onTokenUsage: handleTokenUsage,
   });
 
   const { toast } = useToast();
@@ -104,6 +126,9 @@ export function ChatView() {
   const fetchResumableDialog = useCallback(() => {
     dialogGraphQlService.getResumableDialog().then(dialog => {
       setResumableDialog(dialog);
+      if (dialog?.tokenUsage) {
+        setTokenUsage(toTokenUsageData(dialog.tokenUsage));
+      }
     });
   }, []);
 
@@ -118,6 +143,7 @@ export function ChatView() {
     setPreviewTicketId(null);
     clearMessages();
     queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    setTokenUsage(null);
     if (!flags.tickets) {
       fetchResumableDialog();
     }
@@ -168,6 +194,14 @@ export function ChatView() {
     },
     [ticketsHook, resumeDialog, showTicketPreview, toast, flags],
   );
+
+  useEffect(() => {
+    if (!dialogId) return;
+    if (tokenUsage) return;
+    dialogGraphQlService.getDialogTokenUsage(dialogId).then(usage => {
+      if (usage) setTokenUsage(toTokenUsageData(usage));
+    });
+  }, [dialogId]);
 
   const { status, serverUrl, aiConfiguration, isFullyLoaded } = useConnectionStatus();
   const isDisconnected = status !== 'connected';
@@ -306,10 +340,8 @@ export function ChatView() {
 
             {flags.tickets ? (
               <>
-                {/* Tickets List */}
                 <ChatTicketList className="w-full max-w-2xl" tickets={displayTickets} onTicketClick={handleTicketClick} />
 
-                {/* Quick Actions — shown only when no tickets */}
                 {displayTickets.length === 0 && quickActions.length > 0 && (
                   <div className="w-full max-w-2xl">
                     <h3 className="text-xs uppercase tracking-wider text-ods-text-secondary mb-3">Quick Help</h3>
@@ -329,7 +361,6 @@ export function ChatView() {
               </>
             ) : (
               <>
-                {/* Resumable Dialog */}
                 {resumableDialog && (
                   <div className="w-full max-w-2xl mb-6">
                     <h3 className="text-xs uppercase tracking-wider text-ods-text-secondary mb-3">
@@ -340,6 +371,7 @@ export function ChatView() {
                       onClick={async () => {
                         const success = await resumeDialog(resumableDialog.id);
                         if (success) {
+                          setTokenUsage(toTokenUsageData(resumableDialog.tokenUsage));
                           setResumableDialog(null);
                         }
                       }}
@@ -358,7 +390,6 @@ export function ChatView() {
                   </div>
                 )}
 
-                {/* Quick Actions */}
                 {quickActions.length > 0 && (
                   <div className="w-full max-w-2xl">
                     <h3 className="text-xs uppercase tracking-wider text-ods-text-secondary mb-3">Quick Help</h3>
@@ -385,31 +416,40 @@ export function ChatView() {
         <ChatInput
           onSend={sendMessage}
           onStop={flags['dialog-stop'] && isStreaming && !hasPendingApproval ? stopGeneration : undefined}
-          sending={isStreaming}
+          sending={isStreaming || isCompacting}
           awaitingResponse={isTicketPreview || awaitingTechnicianResponse}
           placeholder="Enter your request here..."
           className={hasMessages ? '' : 'max-w-2xl mx-auto'}
           reserveAvatarOffset={hasMessages}
           disabled={isDisconnected}
         />
-        {displayModel && isFullyLoaded && (
+        {(displayModel && isFullyLoaded || tokenUsage) && (
           <div className={hasMessages ? 'mx-auto w-full max-w-3xl px-4' : 'mx-auto w-full max-w-2xl'}>
             {hasMessages ? (
               <div className="grid grid-cols-[32px_1fr] gap-4 mt-3">
                 <div className="invisible h-8 w-8" aria-hidden />
-                <ModelDisplay
-                  provider={displayModel.provider}
-                  modelName={displayModel.modelName}
-                  displayName={supportedModelsService.getModelDisplayName(displayModel.modelName)}
-                />
+                <div>
+                  {displayModel && isFullyLoaded && (
+                    <ModelDisplay
+                      provider={displayModel.provider}
+                      modelName={displayModel.modelName}
+                      displayName={supportedModelsService.getModelDisplayName(displayModel.modelName)}
+                    />
+                  )}
+                  {tokenUsage && <TokenTracker tokenUsage={tokenUsage} />}
+                </div>
               </div>
             ) : (
               <div className="mt-3">
-                <ModelDisplay
-                  provider={displayModel.provider}
-                  modelName={displayModel.modelName}
-                  displayName={supportedModelsService.getModelDisplayName(displayModel.modelName)}
-                />
+                {displayModel && isFullyLoaded && (
+                  <ModelDisplay
+                    provider={displayModel.provider}
+                    modelName={displayModel.modelName}
+                    displayName={supportedModelsService.getModelDisplayName(displayModel.modelName)}
+                    usedTokens={tokenUsage?.totalTokensSize}
+                    contextWindow={tokenUsage?.contextSize}
+                  />
+                )}
               </div>
             )}
           </div>
