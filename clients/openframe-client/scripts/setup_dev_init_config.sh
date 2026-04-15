@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Default API URL
-API_URL="https://localhost/api/agent/registration-secret/active"
+API_URL="https://openframe.1octet.ca/api/agent/registration-secret/active"
 # Default Org ID for dev setup
 ORG_ID="test-org"
 

@@ -34,7 +34,7 @@ spring:
 openframe:
 
   auth:
-    error-url: "${TENANT_HOST_URL:https://localhost}/auth/error"
+    error-url: "${TENANT_HOST_URL:https://openframe.1octet.ca}/auth/error"
 
   # SSO Configuration
   tenancy:
@@ -42,8 +42,8 @@ openframe:
 
   sso:
     google:
-      registration-redirect-uri: "${TENANT_HOST_URL:https://localhost}/sas/register/login/oauth2/code/google"
-      login-redirect-uri: "${TENANT_HOST_URL:https://localhost}/sas/login/oauth2/code/google"
+      registration-redirect-uri: "${TENANT_HOST_URL:https://openframe.1octet.ca}/sas/register/login/oauth2/code/google"
+      login-redirect-uri: "${TENANT_HOST_URL:https://openframe.1octet.ca}/sas/login/oauth2/code/google"
       authorization-url: https://accounts.google.com/o/oauth2/v2/auth
       token-url: https://oauth2.googleapis.com/token
       user-info-url: https://openidconnect.googleapis.com/v1/userinfo
@@ -54,7 +54,7 @@ openframe:
         - profile
         - email
     microsoft:
-      login-redirect-uri: "${TENANT_HOST_URL:https://localhost}/sas/login/oauth2/code/microsoft"
+      login-redirect-uri: "${TENANT_HOST_URL:https://openframe.1octet.ca}/sas/login/oauth2/code/microsoft"
 
       # Tenant-specific (will be used when msTenantId is present in sso_configs)
       authorization-url: "https://login.microsoftonline.com/{msTenantId}/oauth2/v2.0/authorize"
@@ -74,7 +74,7 @@ openframe:
         - email
 
   password-reset:
-    link-template: "${TENANT_HOST_URL:https://localhost}/reset-password?token={token}"
+    link-template: "${TENANT_HOST_URL:https://openframe.1octet.ca}/reset-password?token={token}"
   mail:
     provider: smtp
 # Security OAuth2 Token Configuration

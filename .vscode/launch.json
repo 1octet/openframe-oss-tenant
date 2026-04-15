@@ -164,8 +164,8 @@
             "env": {
                 "NODE_ENV": "development",
                 "PORT": "4000",
-                "NEXT_PUBLIC_API_URL": "https://localhost/api",
-                "NEXT_PUBLIC_GRAPHQL_ENDPOINT": "https://localhost/api/graphql",
+                "NEXT_PUBLIC_API_URL": "https://openframe.1octet.ca/api",
+                "NEXT_PUBLIC_GRAPHQL_ENDPOINT": "https://openframe.1octet.ca/api/graphql",
                 "NEXT_PUBLIC_WS_ENDPOINT": "wss://localhost/api/ws",
                 "NEXT_PUBLIC_APP_TYPE": "openframe",
                 "NEXT_PUBLIC_CLIENT_ID": "openframe_web_dashboard",

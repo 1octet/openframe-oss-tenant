@@ -67,7 +67,7 @@ openframe:
         maximum-size: 1
   invitations:
     ttl-hours: 24h
-    link-template: "${TENANT_HOST_URL:https://localhost}/invitations?invitationId={id}"
+    link-template: "${TENANT_HOST_URL:https://openframe.1octet.ca}/invitations?invitationId={id}"
   mail:
     provider: smtp
   saas:
